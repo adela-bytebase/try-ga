@@ -1,0 +1,34 @@
+name: Hello World Action
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      name:
+        description: 'Who to greet'
+        required: true
+        default: 'World'
+
+jobs:
+  hello-world:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run custom hello world action
+        uses: ./.github/actions/hello-world
+        id: hello
+        with:
+          name: ${{ github.event.inputs.name || 'World' }}
+
+      - name: Show output time
+        run: echo "Action was run at ${{ steps.hello.outputs.time }}"
+
+      - name: Upload output file
+        uses: actions/upload-artifact@v4
+        with:
+          name: action-output
+          path: output.txt

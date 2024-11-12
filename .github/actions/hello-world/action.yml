@@ -1,0 +1,13 @@
+name: 'Hello World Custom Action'
+description: 'A custom action that creates greetings and output files'
+inputs:
+  name:
+    description: 'Who to greet'
+    required: false
+    default: 'World'
+outputs:
+  time:
+    description: 'The time we greeted you'
+runs:
+  using: 'node20'
+  main: 'index.js' 
