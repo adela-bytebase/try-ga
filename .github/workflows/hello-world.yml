@@ -1,9 +1,10 @@
 name: Hello World Action
 on:
-  push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
   workflow_dispatch:
     inputs:
       name:
@@ -22,13 +23,19 @@ jobs:
         uses: ./.github/actions/hello-world
         id: hello
         with:
-          name: ${{ github.event.inputs.name || 'World' }}
+          name: ${{ github.event.pull_request.user.login || github.event.inputs.name || 'World' }}
 
       - name: Show output time
         run: echo "Action was run at ${{ steps.hello.outputs.time }}"
 
-      - name: Upload output file
-        uses: actions/upload-artifact@v4
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
         with:
-          name: action-output
-          path: output.txt
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              body: `Hello @${context.payload.pull_request.user.login}! Action was run at ${steps.hello.outputs.time}`
+            })
