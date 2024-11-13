@@ -54,11 +54,14 @@ jobs:
         with:
           script: |
             const time = process.env.TIME;
-            const projects = JSON.parse(process.env.PROJECTS);
+            const projectsData = JSON.parse(process.env.PROJECTS);
+            
+            // Access the projects array from the response
+            const projects = projectsData.projects;
             
             // Format projects list
             const projectsList = projects.map(project => 
-              `- ${project.name} (${project.key})`
+              `- ${project.title} (${project.key})`
             ).join('\n');
             
             const commentBody = `
