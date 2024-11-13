@@ -29,55 +29,48 @@ jobs:
         with:
           name: ${{ github.event.pull_request.user.login || github.event.inputs.name || 'World' }}
 
-      - name: Show output time
-        run: echo "Action was run at ${{ steps.hello.outputs.time }}"
-
       - name: Login Bytebase
         id: bytebase-login
-        uses: bytebase/login-action@main
+        uses: bytebase/login-action@0.0.2
         with:
           bytebase-url: ${{ secrets.BYTEBASE_URL }}
           service-key: ${{ secrets.BYTEBASE_SERVICE_KEY }}
           service-secret: ${{ secrets.BYTEBASE_SERVICE_SECRET }}
 
-      - name: List projects
+      - name: Get Projects
+        id: get-projects
         run: |
-          curl "${{ steps.bytebase-login.outputs.api_url }}/projects" \
-            -H 'Authorization: Bearer ${{ steps.bytebase-login.outputs.token }}' \
-            -H 'Content-Type: application/json; charset=utf-8'
-
+          PROJECTS=$(curl -s "${{ steps.bytebase-login.outputs.api_url }}/projects" \
+            -H "Authorization: Bearer ${{ steps.bytebase-login.outputs.token }}" \
+            -H "Content-Type: application/json; charset=utf-8")
+          echo "projects=$(echo $PROJECTS)" >> $GITHUB_OUTPUT
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
           TIME: ${{ steps.hello.outputs.time }}
-          BYTEBASE_PROJECTS: ${{ steps.bytebase-login.outputs.projects }}
+          PROJECTS: ${{ steps.get-projects.outputs.projects }}
         with:
           script: |
-            // Debug information
-            const repository = process.env.GITHUB_REPOSITORY;
-            console.log('Full repository name:', repository);
-            console.log('Event name:', context.eventName);
-            console.log('PR number:', context.payload.pull_request.number);
+            const time = process.env.TIME;
+            const projects = JSON.parse(process.env.PROJECTS);
+            
+            // Format projects list
+            const projectsList = projects.map(project => 
+              `- ${project.name} (${project.key})`
+            ).join('\n');
+            
+            const commentBody = `
+            Hello @${context.payload.pull_request.user.login}! 
+            Action was run at ${time}
 
-            console.log('Bytebase projects:', process.env.BYTEBASE_PROJECTS);
+            ### Projects List:
+            ${projectsList}
+            `;
             
-            const [owner, repo] = repository.split('/');
-            
-            try {
-              await github.rest.issues.createComment({
-                owner: owner,
-                repo: repo,
-                issue_number: context.payload.pull_request.number,
-                body: `Hello @${context.payload.pull_request.user.login}! Action was run at ${process.env.TIME}`
-              });
-            } catch (error) {
-              console.log('Full error:', {
-                message: error.message,
-                status: error.status,
-                url: error.response?.url,
-                data: error.response?.data
-              });
-              core.setFailed(error.message);
-            }
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: commentBody
+            });
