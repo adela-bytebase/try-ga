@@ -32,11 +32,27 @@ jobs:
       - name: Show output time
         run: echo "Action was run at ${{ steps.hello.outputs.time }}"
 
+      - name: Login Bytebase
+        id: bytebase-login
+        uses: bytebase/actions-login@0.02
+        with:
+          bytebase-url: ${{ secrets.BYTEBASE_URL }}
+          service-key: ${{ secrets.BYTEBASE_KEY }}
+          service-secret: ${{ secrets.BYTEBASE_SECRET }}
+
+      - name: List projects
+        run: |
+          curl "${{ steps.bytebase-login.outputs.api_url }}/projects" \
+            -H 'Authorization: Bearer ${{ steps.bytebase-login.outputs.token }}' \
+            -H 'Content-Type: application/json; charset=utf-8'
+
+
       - name: Comment on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
           TIME: ${{ steps.hello.outputs.time }}
+          BYTEBASE_PROJECTS: ${{ steps.bytebase-login.outputs.projects }}
         with:
           script: |
             // Debug information
@@ -44,6 +60,8 @@ jobs:
             console.log('Full repository name:', repository);
             console.log('Event name:', context.eventName);
             console.log('PR number:', context.payload.pull_request.number);
+
+            console.log('Bytebase projects:', process.env.BYTEBASE_PROJECTS);
             
             const [owner, repo] = repository.split('/');
             
