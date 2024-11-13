@@ -18,6 +18,7 @@ jobs:
     permissions:
       pull-requests: write
       issues: write
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,11 +39,21 @@ jobs:
           TIME: ${{ steps.hello.outputs.time }}
         with:
           script: |
+            // Debug information
+            console.log('Event name:', context.eventName);
+            console.log('Action:', context.action);
             console.log('Repository:', context.repo.owner + '/' + context.repo.name);
-            console.log('PR number:', context.issue.number);
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.name,
-              issue_number: context.issue.number,
-              body: `Hello @${context.payload.pull_request.user.login}! Action was run at ${process.env.TIME}`
-            });
+            console.log('PR number:', context.payload.pull_request.number);
+            console.log('PR title:', context.payload.pull_request.title);
+            
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: context.payload.pull_request.number,
+                body: `Hello @${context.payload.pull_request.user.login}! Action was run at ${process.env.TIME}`
+              });
+            } catch (error) {
+              console.log('Error details:', error);
+              core.setFailed(error.message);
+            }
