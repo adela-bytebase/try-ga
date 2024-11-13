@@ -37,8 +37,8 @@ jobs:
         uses: bytebase/login-action@main
         with:
           bytebase-url: ${{ secrets.BYTEBASE_URL }}
-          service-key: ${{ secrets.BYTEBASE_KEY }}
-          service-secret: ${{ secrets.BYTEBASE_SECRET }}
+          service-key: ${{ secrets.BYTEBASE_SERVICE_KEY }}
+          service-secret: ${{ secrets.BYTEBASE_SERVICE_SECRET }}
 
       - name: List projects
         run: |
