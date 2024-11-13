@@ -34,7 +34,7 @@ jobs:
 
       - name: Login Bytebase
         id: bytebase-login
-        uses: bytebase/login-action@0.02
+        uses: bytebase/login-action@main
         with:
           bytebase-url: ${{ secrets.BYTEBASE_URL }}
           service-key: ${{ secrets.BYTEBASE_KEY }}
