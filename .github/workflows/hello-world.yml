@@ -37,39 +37,53 @@ jobs:
           service-key: ${{ secrets.BYTEBASE_SERVICE_KEY }}
           service-secret: ${{ secrets.BYTEBASE_SERVICE_SECRET }}
 
-      - name: Get Projects
-        id: get-projects
+      - name: Apply column masking policy
+        if:
+        id: apply-column-masking
         run: |
-          PROJECTS=$(curl -s "${{ steps.bytebase-login.outputs.api_url }}/projects" \
-            -H "Authorization: Bearer ${{ steps.bytebase-login.outputs.token }}" \
-            -H "Content-Type: application/json; charset=utf-8")
-          echo "projects=$(echo $PROJECTS)" >> $GITHUB_OUTPUT
+          response=$(curl -s -w "\n%{http_code}" --request PATCH "${{ steps.bytebase-login.outputs.api_url }}/v1/instances/prod-sample-instance/databases/hr_prod/policies/masking?allow_missing=true&update_mask=payload" \
+            --header "Authorization: Bearer ${{ steps.bytebase-login.outputs.token }}" \
+            --header "Content-Type: application/json" \
+            --data @masking/databases/hr_prod/column-masking.json)
+          
+          # Extract status code and response body
+          status_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          # Log the response
+          echo "Status code: $status_code"
+          echo "Response body: $body"
+          
+          # Save to outputs
+          echo "status_code=$status_code" >> $GITHUB_OUTPUT
+          echo "response=$body" >> $GITHUB_OUTPUT
+          
+          # Fail if status code is not 2xx
+          if [[ $status_code -lt 200 || $status_code -ge 300 ]]; then
+            echo "Failed with status code: $status_code"
+            exit 1
+          fi
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
           TIME: ${{ steps.hello.outputs.time }}
-          PROJECTS: ${{ steps.get-projects.outputs.projects }}
+          MASKING_STATUS: ${{ steps.apply-column-masking.outputs.status_code }}
+          MASKING_RESPONSE: ${{ steps.apply-column-masking.outputs.response }}
         with:
           script: |
             const time = process.env.TIME;
-            const projectsData = JSON.parse(process.env.PROJECTS);
-            
-            // Access the projects array from the response
-            const projects = projectsData.projects;
-            
-            // Format projects list
-            const projectsList = projects.map(project => 
-              `- ${project.title} (${project.key})`
-            ).join('\n');
+            const maskingStatus = process.env.MASKING_STATUS;
+            const maskingResponse = process.env.MASKING_RESPONSE;
             
             const commentBody = `
             Hello @${context.payload.pull_request.user.login}! 
             Action was run at ${time}
 
-            ### Projects List:
-            ${projectsList}
+            ### Column Masking Policy Update Status
+            - Status Code: ${maskingStatus}
+            - Response: \`\`\`json\n${maskingResponse}\n\`\`\`
             `;
             
             await github.rest.issues.createComment({
