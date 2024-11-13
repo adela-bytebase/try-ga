@@ -15,6 +15,9 @@ on:
 jobs:
   hello-world:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,10 +38,11 @@ jobs:
           TIME: ${{ steps.hello.outputs.time }}
         with:
           script: |
-            const time = process.env.TIME;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            console.log('Repository:', context.repo.owner + '/' + context.repo.name);
+            console.log('PR number:', context.issue.number);
+            await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.name,
-              body: `Hello @${context.payload.pull_request.user.login}! Action was run at ${time}`
-            })
+              issue_number: context.issue.number,
+              body: `Hello @${context.payload.pull_request.user.login}! Action was run at ${process.env.TIME}`
+            });
