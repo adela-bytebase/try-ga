@@ -38,7 +38,6 @@ jobs:
           service-secret: ${{ secrets.BYTEBASE_SERVICE_SECRET }}
 
       - name: Apply column masking policy
-        if:
         id: apply-column-masking
         run: |
           response=$(curl -s -w "\n%{http_code}" --request PATCH "${{ steps.bytebase-login.outputs.api_url }}/instances/prod-sample-instance/databases/hr_prod/policies/masking?allow_missing=true&update_mask=payload" \
