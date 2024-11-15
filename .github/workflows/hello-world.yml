@@ -86,8 +86,9 @@ jobs:
         run: |
           # Extract project name from the changed file path
           CHANGED_FILE=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | grep "masking-exception.json")
+          echo "CHANGED_FILE=$CHANGED_FILE"
           PROJECT_NAME=$(echo "$CHANGED_FILE" | sed -n 's/masking\/projects\/\([^/]*\).*/\1/p')
-          
+          echo "PROJECT_NAME=$PROJECT_NAME"
           response=$(curl -s -w "\n%{http_code}" --request PATCH "${{ steps.bytebase-login.outputs.api_url }}/projects/${PROJECT_NAME}/policies/masking_exception?allow_missing=true&update_mask=payload" \
             --header "Authorization: Bearer ${{ steps.bytebase-login.outputs.token }}" \
             --header "Content-Type: application/json" \
