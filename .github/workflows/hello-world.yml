@@ -125,14 +125,21 @@ jobs:
           CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         with:
           script: |
-            const changedFiles = process.env.CHANGED_FILES;
+            const changedFiles = process.env.CHANGED_FILES || '';
             let commentBody = `### Masking Policy Update Summary\n\n`;
 
             // Add changed files section
-            commentBody += `📝 **Changed Files:**\n${changedFiles.split(' ').map(f => `- ${f}`).join('\n')}\n\n`;
+            commentBody += `📝 **Changed Files:**\n`;
+            if (changedFiles.trim()) {
+              commentBody += changedFiles.split(' ').map(f => `- ${f}`).join('\n');
+            } else {
+              commentBody += `None\n`;
+            }
+            commentBody += '\n';
             
             // Add API calls summary
             commentBody += `🔄 **API Calls:**\n`;
+            let apiCallsFound = false;
 
             if (changedFiles.includes('column-masking.json')) {
               const maskingStatuses = Object.keys(${{ toJSON(steps.apply-column-masking.outputs) }} || {})
@@ -143,6 +150,7 @@ jobs:
                 }));
               
               maskingStatuses.forEach(({name, status}) => {
+                apiCallsFound = true;
                 const success = status >= 200 && status < 300;
                 commentBody += `- Column Masking (${name}): ${success ? '✅' : '❌'} ${status}\n`;
               });
@@ -157,9 +165,14 @@ jobs:
                 }));
               
               exceptionStatuses.forEach(({name, status}) => {
+                apiCallsFound = true;
                 const success = status >= 200 && status < 300;
                 commentBody += `- Masking Exception (${name}): ${success ? '✅' : '❌'} ${status}\n`;
               });
+            }
+
+            if (!apiCallsFound) {
+              commentBody += `None\n`;
             }
 
             await github.rest.issues.createComment({
