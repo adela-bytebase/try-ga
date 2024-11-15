@@ -6,8 +6,8 @@
       {
         "schema": "public",
         "table": "salary",
-        "column": "emp_no",
-        "maskingLevel": "NONE",
+        "column": "amount",
+        "maskingLevel": "PARTIAL",
         "fullMaskingAlgorithmId": "",
         "partialMaskingAlgorithmId": ""
       }
