@@ -129,16 +129,16 @@ jobs:
             let commentBody = `### Masking Policy Update Summary\n\n`;
 
             // Add changed files section
-            commentBody += `📝 **Changed Files:**\n`;
+            commentBody += `📝 **Changed Files:**\n\n`;
             if (changedFiles.trim()) {
               commentBody += changedFiles.split(' ').map(f => `- ${f}`).join('\n');
             } else {
-              commentBody += `None\n`;
+              commentBody += `None`;
             }
-            commentBody += '\n';
+            commentBody += '\n\n';
             
             // Add API calls summary
-            commentBody += `🔄 **API Calls:**\n`;
+            commentBody += `🔄 **API Calls:**\n\n`;
             let apiCallsFound = false;
 
             if (changedFiles.includes('column-masking.json')) {
@@ -172,7 +172,7 @@ jobs:
             }
 
             if (!apiCallsFound) {
-              commentBody += `None\n`;
+              commentBody += `None`;
             }
 
             await github.rest.issues.createComment({
