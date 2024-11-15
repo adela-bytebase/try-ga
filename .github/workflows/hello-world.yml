@@ -45,14 +45,18 @@ jobs:
             masking/databases/**/column-masking.json
             masking/projects/**/masking-exception.json
 
-      - name: Debug changed files
+      - name: Debug changed files in detail
         run: |
-          echo "Changed files:"
+          echo "All changed files:"
           echo "${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "Contains column-masking.json: ${{ contains(steps.changed-files.outputs.all_changed_files, 'column-masking.json') }}"
+          echo "Contains masking-exception.json: ${{ contains(steps.changed-files.outputs.all_changed_files, 'masking-exception.json') }}"
+          echo "Raw output:"
+          echo "${{ toJSON(steps.changed-files.outputs) }}"
 
       - name: Apply column masking policy
         id: apply-column-masking
-        if: ${{ contains(toJSON(steps.changed-files.outputs.all_changed_files), 'column-masking.json') }}
+        if: ${{ steps.changed-files.outputs.any_changed == 'true' && contains(steps.changed-files.outputs.all_changed_files, '/column-masking.json') }}
         run: |
           # Process all column-masking.json files
           echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep "column-masking.json" | while read -r CHANGED_FILE; do
@@ -86,7 +90,7 @@ jobs:
 
       - name: Apply masking exception policy
         id: apply-masking-exception
-        if: ${{ contains(toJSON(steps.changed-files.outputs.all_changed_files), 'masking-exception.json') }}
+        if: ${{ steps.changed-files.outputs.any_changed == 'true' && contains(steps.changed-files.outputs.all_changed_files, '/masking-exception.json') }}
         run: |
           # Process all masking-exception.json files
           echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep "masking-exception.json" | while read -r CHANGED_FILE; do
