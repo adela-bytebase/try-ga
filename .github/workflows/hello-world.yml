@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       name:
-        description: 'Who to greet'
+        description: "Who to greet"
         required: true
-        default: 'World'
+        default: "World"
 
 jobs:
   hello-world:
@@ -22,12 +22,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Run custom hello world action
-        uses: ./.github/actions/hello-world
-        id: hello
-        with:
-          name: ${{ github.event.pull_request.user.login || github.event.inputs.name || 'World' }}
 
       - name: Login Bytebase
         id: bytebase-login
@@ -128,60 +122,59 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
-          TIME: ${{ steps.hello.outputs.time }}
           CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         with:
           script: |
-            const time = process.env.TIME;
-            const changedFiles = process.env.CHANGED_FILES;
-            
-            let commentBody = `
-            Hello @${context.payload.pull_request.user.login}! 
-            Action was run at ${time}\n`;
-            
-            // Function to get all outputs with a prefix
-            function getOutputsWithPrefix(prefix, outputs) {
-              return Object.keys(outputs || {})
-                .filter(key => key.startsWith(prefix))
-                .reduce((obj, key) => {
-                  const name = key.replace(prefix, '');
-                  obj[name] = outputs[key];
-                  return obj;
-                }, {});
+            const changedFiles = process.env.CHANGED_FILES || '';
+            let commentBody = `### Masking Policy Update Summary\n\n`;
+
+            // Add changed files section
+            commentBody += `📝 **Changed Files:**\n\n`;
+            if (changedFiles.trim()) {
+              commentBody += changedFiles.split(' ').map(f => `- ${f}`).join('\n');
+            } else {
+              commentBody += `None`;
             }
+            commentBody += '\n\n';
             
-            // Only show column masking results if column-masking.json files were changed
+            // Add API calls summary
+            commentBody += `🔄 **API Calls:**\n\n`;
+            let apiCallsFound = false;
+
             if (changedFiles.includes('column-masking.json')) {
-              const maskingStatuses = getOutputsWithPrefix('status_code_', ${{ toJSON(steps.apply-column-masking.outputs) }});
-              const maskingResponses = getOutputsWithPrefix('response_', ${{ toJSON(steps.apply-column-masking.outputs) }});
+              const maskingStatuses = Object.keys(${{ toJSON(steps.apply-column-masking.outputs) }} || {})
+                .filter(key => key.startsWith('status_code_'))
+                .map(key => ({
+                  name: key.replace('status_code_', ''),
+                  status: ${{ toJSON(steps.apply-column-masking.outputs) }}[key]
+                }));
               
-              if (Object.keys(maskingStatuses).length > 0) {
-                commentBody += '\n### Column Masking Policy Updates\n';
-                for (const db in maskingStatuses) {
-                  commentBody += `
-                  #### Database: ${db}
-                  - Status Code: ${maskingStatuses[db]}
-                  - Response: \`\`\`json\n${maskingResponses[db]}\n\`\`\`\n`;
-                }
-              }
+              maskingStatuses.forEach(({name, status}) => {
+                apiCallsFound = true;
+                const success = status >= 200 && status < 300;
+                commentBody += `- Column Masking (${name}): ${success ? '✅' : '❌'} ${status}\n`;
+              });
             }
-            
-            // Only show masking exception results if masking-exception.json files were changed
+
             if (changedFiles.includes('masking-exception.json')) {
-              const exceptionStatuses = getOutputsWithPrefix('status_code_', ${{ toJSON(steps.apply-masking-exception.outputs) }});
-              const exceptionResponses = getOutputsWithPrefix('response_', ${{ toJSON(steps.apply-masking-exception.outputs) }});
+              const exceptionStatuses = Object.keys(${{ toJSON(steps.apply-masking-exception.outputs) }} || {})
+                .filter(key => key.startsWith('status_code_'))
+                .map(key => ({
+                  name: key.replace('status_code_', ''),
+                  status: ${{ toJSON(steps.apply-masking-exception.outputs) }}[key]
+                }));
               
-              if (Object.keys(exceptionStatuses).length > 0) {
-                commentBody += '\n### Masking Exception Policy Updates\n';
-                for (const project in exceptionStatuses) {
-                  commentBody += `
-                  #### Project: ${project}
-                  - Status Code: ${exceptionStatuses[project]}
-                  - Response: \`\`\`json\n${exceptionResponses[project]}\n\`\`\`\n`;
-                }
-              }
+              exceptionStatuses.forEach(({name, status}) => {
+                apiCallsFound = true;
+                const success = status >= 200 && status < 300;
+                commentBody += `- Masking Exception (${name}): ${success ? '✅' : '❌'} ${status}\n`;
+              });
             }
-            
+
+            if (!apiCallsFound) {
+              commentBody += `None`;
+            }
+
             await github.rest.issues.createComment({
               ...context.repo,
               issue_number: context.issue.number,
