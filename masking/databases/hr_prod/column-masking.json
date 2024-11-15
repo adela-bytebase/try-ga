@@ -6,7 +6,7 @@
       {
         "schema": "public",
         "table": "salary",
-        "column": "amount",
+        "column": "from_date",
         "maskingLevel": "PARTIAL",
         "fullMaskingAlgorithmId": "",
         "partialMaskingAlgorithmId": ""
