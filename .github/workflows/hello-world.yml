@@ -37,54 +37,148 @@ jobs:
           service-key: ${{ secrets.BYTEBASE_SERVICE_KEY }}
           service-secret: ${{ secrets.BYTEBASE_SERVICE_SECRET }}
 
-      - name: Apply column masking policy
-        if:
-        id: apply-column-masking
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v42
+        with:
+          files: |
+            masking/databases/**/column-masking.json
+            masking/projects/**/masking-exception.json
+
+      - name: Debug changed files in detail
         run: |
-          response=$(curl -s -w "\n%{http_code}" --request PATCH "${{ steps.bytebase-login.outputs.api_url }}/instances/prod-sample-instance/databases/hr_prod/policies/masking?allow_missing=true&update_mask=payload" \
-            --header "Authorization: Bearer ${{ steps.bytebase-login.outputs.token }}" \
-            --header "Content-Type: application/json" \
-            --data @masking/databases/hr_prod/column-masking.json)
-          
-          # Extract status code and response body
-          status_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | sed '$d')
-          
-          # Log the response
-          echo "Status code: $status_code"
-          echo "Response body: $body"
-          
-          # Save to outputs
-          echo "status_code=$status_code" >> $GITHUB_OUTPUT
-          echo "response=$body" >> $GITHUB_OUTPUT
-          
-          # Fail if status code is not 2xx
-          if [[ $status_code -lt 200 || $status_code -ge 300 ]]; then
-            echo "Failed with status code: $status_code"
-            exit 1
-          fi
+          echo "All changed files:"
+          echo "${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "Contains column-masking.json: ${{ contains(steps.changed-files.outputs.all_changed_files, 'column-masking.json') }}"
+          echo "Contains masking-exception.json: ${{ contains(steps.changed-files.outputs.all_changed_files, 'masking-exception.json') }}"
+          echo "Raw output:"
+          echo "${{ toJSON(steps.changed-files.outputs) }}"
+
+      - name: Apply column masking policy
+        id: apply-column-masking
+        if: ${{ steps.changed-files.outputs.any_changed == 'true' && contains(steps.changed-files.outputs.all_changed_files, '/column-masking.json') }}
+        run: |
+          # Process all column-masking.json files
+          echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep "column-masking.json" | while read -r CHANGED_FILE; do
+            echo "Processing: $CHANGED_FILE"
+            DATABASE_NAME=$(echo "$CHANGED_FILE" | sed -n 's/masking\/databases\/\([^/]*\).*/\1/p')
+            echo "DATABASE_NAME=$DATABASE_NAME"
+            
+            response=$(curl -s -w "\n%{http_code}" --request PATCH "${{ steps.bytebase-login.outputs.api_url }}/instances/prod-sample-instance/databases/${DATABASE_NAME}/policies/masking?allow_missing=true&update_mask=payload" \
+              --header "Authorization: Bearer ${{ steps.bytebase-login.outputs.token }}" \
+              --header "Content-Type: application/json" \
+              --data @"$CHANGED_FILE")
+
+            # Extract status code and response body
+            status_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+            
+            echo "Status code: $status_code"
+            echo "Response body: $body"
+            
+            # Append to outputs (with unique identifiers)
+            echo "status_code_${DATABASE_NAME}=${status_code}" >> $GITHUB_OUTPUT
+            echo "response_${DATABASE_NAME}<<EOF" >> $GITHUB_OUTPUT
+            echo "${body}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            if [[ $status_code -lt 200 || $status_code -ge 300 ]]; then
+              echo "Failed with status code: $status_code for database: $DATABASE_NAME"
+              exit 1
+            fi
+          done
+
+      - name: Apply masking exception policy
+        id: apply-masking-exception
+        if: ${{ steps.changed-files.outputs.any_changed == 'true' && contains(steps.changed-files.outputs.all_changed_files, '/masking-exception.json') }}
+        run: |
+          # Process all masking-exception.json files
+          echo "${{ steps.changed-files.outputs.all_changed_files }}" | tr ' ' '\n' | grep "masking-exception.json" | while read -r CHANGED_FILE; do
+            echo "Processing: $CHANGED_FILE"
+            PROJECT_NAME=$(echo "$CHANGED_FILE" | sed -n 's/masking\/projects\/\([^/]*\).*/\1/p')
+            echo "PROJECT_NAME=$PROJECT_NAME"
+            
+            response=$(curl -s -w "\n%{http_code}" --request PATCH "${{ steps.bytebase-login.outputs.api_url }}/projects/${PROJECT_NAME}/policies/masking_exception?allow_missing=true&update_mask=payload" \
+              --header "Authorization: Bearer ${{ steps.bytebase-login.outputs.token }}" \
+              --header "Content-Type: application/json" \
+              --data @"$CHANGED_FILE")
+            
+            # Extract status code and response body
+            status_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+            
+            echo "Status code: $status_code"
+            echo "Response body: $body"
+            
+            # Append to outputs (with unique identifiers)
+            echo "status_code_${PROJECT_NAME}=${status_code}" >> $GITHUB_OUTPUT
+            echo "response_${PROJECT_NAME}<<EOF" >> $GITHUB_OUTPUT
+            echo "${body}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            if [[ $status_code -lt 200 || $status_code -ge 300 ]]; then
+              echo "Failed with status code: $status_code for project: $PROJECT_NAME"
+              exit 1
+            fi
+          done
 
       - name: Comment on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
           TIME: ${{ steps.hello.outputs.time }}
-          MASKING_STATUS: ${{ steps.apply-column-masking.outputs.status_code }}
-          MASKING_RESPONSE: ${{ steps.apply-column-masking.outputs.response }}
+          CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         with:
           script: |
             const time = process.env.TIME;
-            const maskingStatus = process.env.MASKING_STATUS;
-            const maskingResponse = process.env.MASKING_RESPONSE;
+            const changedFiles = process.env.CHANGED_FILES;
             
-            const commentBody = `
+            let commentBody = `
             Hello @${context.payload.pull_request.user.login}! 
-            Action was run at ${time}
-
-            ### Column Masking Policy Update Status
-            - Status Code: ${maskingStatus}
-            - Response: \`\`\`json\n${maskingResponse}\n\`\`\`
-            `;
+            Action was run at ${time}\n`;
+            
+            // Function to get all outputs with a prefix
+            function getOutputsWithPrefix(prefix, outputs) {
+              return Object.keys(outputs || {})
+                .filter(key => key.startsWith(prefix))
+                .reduce((obj, key) => {
+                  const name = key.replace(prefix, '');
+                  obj[name] = outputs[key];
+                  return obj;
+                }, {});
+            }
+            
+            // Only show column masking results if column-masking.json files were changed
+            if (changedFiles.includes('column-masking.json')) {
+              const maskingStatuses = getOutputsWithPrefix('status_code_', ${{ toJSON(steps.apply-column-masking.outputs) }});
+              const maskingResponses = getOutputsWithPrefix('response_', ${{ toJSON(steps.apply-column-masking.outputs) }});
+              
+              if (Object.keys(maskingStatuses).length > 0) {
+                commentBody += '\n### Column Masking Policy Updates\n';
+                for (const db in maskingStatuses) {
+                  commentBody += `
+                  #### Database: ${db}
+                  - Status Code: ${maskingStatuses[db]}
+                  - Response: \`\`\`json\n${maskingResponses[db]}\n\`\`\`\n`;
+                }
+              }
+            }
+            
+            // Only show masking exception results if masking-exception.json files were changed
+            if (changedFiles.includes('masking-exception.json')) {
+              const exceptionStatuses = getOutputsWithPrefix('status_code_', ${{ toJSON(steps.apply-masking-exception.outputs) }});
+              const exceptionResponses = getOutputsWithPrefix('response_', ${{ toJSON(steps.apply-masking-exception.outputs) }});
+              
+              if (Object.keys(exceptionStatuses).length > 0) {
+                commentBody += '\n### Masking Exception Policy Updates\n';
+                for (const project in exceptionStatuses) {
+                  commentBody += `
+                  #### Project: ${project}
+                  - Status Code: ${exceptionStatuses[project]}
+                  - Response: \`\`\`json\n${exceptionResponses[project]}\n\`\`\`\n`;
+                }
+              }
+            }
             
             await github.rest.issues.createComment({
               ...context.repo,

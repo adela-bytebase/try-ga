@@ -5,20 +5,10 @@
     "maskingExceptions": [
       {
         "action": "EXPORT",
-        "maskingLevel": "PARTIAL",
-        "member": "user:dev1@example.com",
+        "maskingLevel": "NONE",
+        "member": "user:dev@x.com",
         "condition": {
-          "expression": "resource.database_name == \"hr_prod\" && resource.instance_id == \"prod-sample-instance\" && resource.schema_name == \"public\" && resource.table_name == \"salary\" && resource.column_name == \"amount\"",
-          "title": "",
-          "description": ""
-        }
-      },
-      {
-        "action": "QUERY",
-        "maskingLevel": "PARTIAL",
-        "member": "user:dev2@example.com",
-        "condition": {
-          "expression": "resource.database_name == \"hr_prod\" && resource.instance_id == \"prod-sample-instance\" && resource.schema_name == \"public\" && resource.table_name == \"salary\" && resource.column_name == \"amount\"",
+          "expression": "resource.instance_id == \"prod-sample-instance\" && resource.database_name == \"hr_prod\" && resource.schema_name == \"public\" && resource.table_name == \"salary\" && resource.column_name == \"amount\"",
           "title": "",
           "description": ""
         }
@@ -26,9 +16,19 @@
       {
         "action": "QUERY",
         "maskingLevel": "NONE",
-        "member": "group:contractor@example.com",
+        "member": "user:dev2@x.com",
         "condition": {
-          "expression": "resource.database_name == \"hr_prod\" && resource.instance_id == \"prod-sample-instance\" && resource.schema_name == \"public\" && resource.table_name == \"salary\" && resource.column_name == \"amount\"",
+          "expression": "resource.instance_id == \"prod-sample-instance\" && resource.database_name == \"hr_prod\" && resource.schema_name == \"public\" && resource.table_name == \"salary\" && resource.column_name == \"amount\"",
+          "title": "",
+          "description": ""
+        }
+      },
+      {
+        "action": "QUERY",
+        "maskingLevel": "NONE",
+        "member": "group:contractor@x.com",
+        "condition": {
+          "expression": "resource.instance_id == \"prod-sample-instance\" && resource.database_name == \"hr_prod\" && resource.schema_name == \"public\" && resource.table_name == \"salary\" && resource.column_name == \"amount\"",
           "title": "",
           "description": ""
         }
